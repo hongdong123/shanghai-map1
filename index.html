@@ -2,113 +2,96 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>상해 지도</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+    <!-- 모바일 환경 최적화 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>상해 위치 지도</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; }
-        body { display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; text-align: center; }
-        .header h1 { font-size: 20px; margin: 0; }
-        .header p { font-size: 12px; margin: 5px 0 0 0; }
-        .container { display: flex; flex: 1; }
-        #map { flex: 1; background: #e8f4f8; }
-        .sidebar { width: 100%; background: #f9f9f9; border-top: 3px solid #667eea; overflow-y: auto; max-height: 40%; }
-        .sidebar-section { padding: 15px; border-bottom: 1px solid #ddd; }
-        .sidebar-section h3 { font-size: 12px; color: #667eea; margin: 0 0 10px 0; }
-        .location-item { padding: 10px; background: white; margin-bottom: 8px; border-left: 3px solid #667eea; cursor: pointer; border-radius: 4px; }
-        .location-item strong { display: block; color: #333; margin-bottom: 3px; }
-        .location-item span { color: #999; font-size: 11px; }
-        .location-item.hotel { border-left-color: #e74c3c; }
-        .location-item.golf { border-left-color: #27ae60; }
-        .location-item.airport { border-left-color: #3498db; }
-        @media (min-width: 768px) {
-            .container { flex-direction: row; }
-            .sidebar { width: 300px; border-left: 3px solid #667eea; border-top: none; max-height: none; }
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
+        
+        #container { display: flex; flex: 1; flex-direction: row; }
+        #map { flex: 1; height: 100%; }
+        #sidebar { width: 300px; overflow-y: auto; background: #fdfdfd; border-left: 1px solid #ccc; }
+
+        .list-item { padding: 15px; border-bottom: 1px solid #ddd; cursor: pointer; transition: background 0.2s; }
+        .list-item:hover { background: #f0f0f0; }
+        .list-item b { display: block; font-size: 16px; margin-bottom: 5px; }
+        .list-item span { font-size: 13px; color: #666; }
+
+        /* 마커 디자인 개선: 동그라미 배경 추가 */
+        .marker-circle {
+            background-color: white; /* 배경 흰색 */
+            border: 2px solid #3388ff; /* 파란색 테두리 */
+            border-radius: 50%; /* 동그랗게 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* 그림자 효과로 입체감 */
+            font-size: 18px; /* 이모지 크기 */
+        }
+
+        @media (max-width: 600px) {
+            #container { flex-direction: column; }
+            #sidebar { width: 100%; height: 300px; border-left: none; border-top: 1px solid #ccc; }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🗺️ 상해 지도</h1>
-        <p>호텔 • 골프장 • 공항</p>
-    </div>
-    
-    <div class="container">
+
+    <div id="container">
         <div id="map"></div>
-        <div class="sidebar">
-            <div class="sidebar-section">
-                <h3>🏨 호텔</h3>
-                <div id="hotelList"></div>
-            </div>
-            <div class="sidebar-section">
-                <h3>⛳ 골프장</h3>
-                <div id="golfList"></div>
-            </div>
-            <div class="sidebar-section">
-                <h3>✈️ 공항</h3>
-                <div id="airportList"></div>
-            </div>
+        <div id="sidebar">
+            <h3 style="padding: 10px 15px; margin: 0; background: #eee;">위치 목록</h3>
+            <div id="location-list"></div>
         </div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map').setView([31.230, 121.470], 11);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        
-        const locations = [
-            {id: 1, category: 'hotel', name: '벨라지오 바이 MGM', lat: 31.24706, lng: 121.48241, icon: '🏨', address: '188 Beisuzhou Road'},
-            {id: 2, category: 'hotel', name: '오쿠라 가든 호텔', lat: 31.2226, lng: 121.4612, icon: '🏨', address: '58 South Maoming Road'},
-            {id: 3, category: 'golf', name: 'PGA 안잉', lat: 31.44744757585559, lng: 121.84606829818833, icon: '⛳', address: '陈家镇揽海路55弄'},
-            {id: 4, category: 'golf', name: '미란호 골프장', lat: 31.403466, lng: 121.367705, icon: '⛳', address: '6655 Hutai Road'},
-            {id: 5, category: 'airport', name: '푸동 공항', lat: 31.143333, lng: 121.805275, icon: '✈️', address: 'Pudong International'},
-            {id: 6, category: 'airport', name: '홍차오 공항', lat: 31.19806, lng: 121.33639, icon: '✈️', address: 'Hongqiao International'}
+        // 지도 초기화
+        var map = L.map('map').setView([31.3, 121.5], 10);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        var locations = [
+            { id: 1, category: 'hotel', name: '벨라지오 바이 MGM', lat: 31.24706, lng: 121.48241, icon: '🏨', address: '188 Beisuzhou Road' },
+            { id: 2, category: 'hotel', name: '오쿠라 가든 호텔', lat: 31.2226, lng: 121.4612, icon: '🏨', address: '58 South Maoming Road' },
+            { id: 3, category: 'golf', name: 'PGA 안잉', lat: 31.44744757585559, lng: 121.84606829818833, icon: '⛳', address: '陈家镇揽海路55弄' },
+            { id: 4, category: 'golf', name: '미란호 골프장', lat: 31.403466, lng: 121.367705, icon: '⛳', address: '6655 Hutai Road' },
+            { id: 5, category: 'airport', name: '푸동 공항', lat: 31.143333, lng: 121.805275, icon: '✈️', address: 'Pudong International' },
+            { id: 6, category: 'airport', name: '홍차오 공항', lat: 31.19806, lng: 121.33639, icon: '✈️', address: 'Hongqiao International' }
         ];
-        
-        const colors = {hotel: '#e74c3c', golf: '#27ae60', airport: '#3498db'};
-        const markers = {};
-        const markerGroup = L.featureGroup();
-        
-        locations.forEach(loc => {
-            const marker = L.marker([loc.lat, loc.lng], {
-                icon: L.divIcon({
-                    html: `<div style="background: ${colors[loc.category]}; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${loc.icon}</div>`,
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20],
-                    popupAnchor: [0, -20]
-                })
-            })
-            .bindPopup(`<strong>${loc.name}</strong><br/>${loc.address}`)
-            .addTo(map);
-            
-            markers[loc.id] = marker;
-            markerGroup.addLayer(marker);
-        });
-        
-        ['hotel', 'golf', 'airport'].forEach(category => {
-            const listId = category === 'hotel' ? 'hotelList' : category === 'golf' ? 'golfList' : 'airportList';
-            const container = document.getElementById(listId);
-            
-            locations.filter(loc => loc.category === category).forEach(loc => {
-                const item = document.createElement('div');
-                item.className = `location-item ${category}`;
-                item.innerHTML = `<strong>${loc.icon} ${loc.name}</strong><span>${loc.address}</span>`;
-                item.onclick = () => {
-                    map.setView([loc.lat, loc.lng], 14);
-                    setTimeout(() => markers[loc.id].openPopup(), 300);
-                };
-                container.appendChild(item);
+
+        var listContainer = document.getElementById('location-list');
+
+        locations.forEach(function(loc) {
+            // 커스텀 마커: 동그라미 배경 스타일 적용
+            var myIcon = L.divIcon({
+                className: 'marker-circle', // CSS 클래스 적용
+                html: loc.icon,
+                iconSize: [40, 40],     // 동그라미 크기
+                iconAnchor: [20, 20]    // 중심점 설정
             });
-        });
-        
-        setTimeout(() => {
-            map.fitBounds(markerGroup.getBounds().pad(0.1));
-        }, 500);
-        
-        window.addEventListener('resize', () => {
-            setTimeout(() => map.invalidateSize(), 250);
+
+            var marker = L.marker([loc.lat, loc.lng], { icon: myIcon }).addTo(map);
+            marker.bindPopup(`<b>${loc.name}</b><br>${loc.address}`);
+
+            // 목록 아이템 생성
+            var item = document.createElement('div');
+            item.className = 'list-item';
+            item.innerHTML = `<b>${loc.icon} ${loc.name}</b><span>${loc.address}</span>`;
+            
+            // 클릭 이벤트
+            item.onclick = function() {
+                map.setView([loc.lat, loc.lng], 14);
+                marker.openPopup();
+            };
+            
+            listContainer.appendChild(item);
         });
     </script>
 </body>
